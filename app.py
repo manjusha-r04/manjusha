@@ -1,38 +1,33 @@
 from fastapi import FastAPI, Request
 from pydantic import BaseModel
 import joblib
-import uvicorn
-import json
+import os
 from utils import mask_pii
 
-# Load trained model
-model = joblib.load("model/email_classifier.pkl")
-
-# FastAPI app
 app = FastAPI()
 
-# Request body format
-class EmailRequest(BaseModel):
+# Load the trained model
+model_path = os.path.join("model", "email_classifier.pkl")
+model = joblib.load(model_path)
+
+# Define input structure
+class EmailInput(BaseModel):
     input_email_body: str
 
+# Define output structure (optional, for clarity)
 @app.post("/classify_email")
-def classify_email(req: EmailRequest):
-    input_text = req.input_email_body
+async def classify_email(data: EmailInput):
+    email_body = data.input_email_body
 
-    # Step 1: Mask PII
-    masked_text, entity_list = mask_pii(input_text)
+    # Mask PII
+    masked_text, entities = mask_pii(email_body)
 
-    # Step 2: Classify masked email
-    category = model.predict([masked_text])[0]
+    # Predict category
+    category = model.predict([email_body])[0]
 
-    # Step 3: Format JSON response
     return {
-        "input_email_body": input_text,
-        "list_of_masked_entities": entity_list,
+        "input_email_body": email_body,
+        "list_of_masked_entities": entities,
         "masked_email": masked_text,
         "category_of_the_email": category
     }
-
-# Optional for local testing
-if __name__ == "__main__":
-    uvicorn.run(app, host="0.0.0.0", port=8000)
